@@ -53,7 +53,7 @@ b { font-weight: 800; }
 .pulse { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { transform: scale(1.05); } }
 
-/* ───── ינשוף ───── */
+/* ───── יוני הבלש (הדמות) ───── */
 .owl { position: relative; width: 90px; flex: 0 0 auto; }
 .owl.xs { width: 54px; } .owl.sm { width: 76px; } .owl.md { width: 120px; } .owl.xl { width: 170px; }
 .owl-svg { width: 100%; height: auto; display: block; overflow: visible; }
@@ -75,9 +75,9 @@ b { font-weight: 800; }
 @keyframes tilt { 30% { transform: rotate(-10deg); } 60% { transform: rotate(6deg); } }
 .acc { position: absolute; left: 50%; transform: translateX(-50%); line-height: 1; pointer-events: none; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .25)); }
 .owl { --sz: 40; } .owl.xs { --sz: 24; } .owl.sm { --sz: 34; } .owl.md { --sz: 54; } .owl.xl { --sz: 76; }
-.owl .acc-hat { top: -18%; font-size: calc(1px * var(--sz)); }
-.owl .acc-eyes { top: 30%; font-size: calc(1px * var(--sz) * 1.05); }
-.owl .acc-neck { top: 68%; font-size: calc(1px * var(--sz) * .6); }
+.owl .acc-hat { top: -24%; font-size: calc(1px * var(--sz)); }
+.owl .acc-eyes { top: 27%; font-size: calc(1px * var(--sz) * 1.05); }
+.owl .acc-neck { top: 50%; font-size: calc(1px * var(--sz) * .6); }
 
 /* ───── בועת דיבור ───── */
 .bubble { background: #fff; border-radius: 20px; padding: 14px 16px; font-size: 17px; line-height: 1.55; box-shadow: var(--sh); position: relative; }
@@ -341,6 +341,77 @@ hr { border: 0; border-top: 2px dashed #e2e8f0; width: 100%; margin: 6px 0; }
   .tb-stat { padding: 6px 9px; font-size: 14px; }
   .tb-btn { width: 36px; height: 36px; font-size: 18px; }
 }
+/* ───── שורת פעולות במפה ───── */
+.map-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 4px 0 8px; }
+.ma { position: relative; background: #fff; border-radius: 16px; padding: 8px 2px 6px; display: flex; flex-direction: column; align-items: center; gap: 1px; box-shadow: 0 4px 0 rgba(30, 27, 75, .12); transition: transform .1s; }
+.ma:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(30, 27, 75, .12); }
+.ma span { font-size: 26px; line-height: 1.1; }
+.ma small { font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.ma.ready { background: linear-gradient(180deg, #fff7d6, #ffe58a); box-shadow: 0 4px 0 var(--gold-d); }
+.ma.ready span { animation: wiggle 2.2s ease-in-out infinite; display: inline-block; }
+.ma.off, .ma.used { opacity: .6; }
+.ma-streak { background: linear-gradient(180deg, #fff1e6, #ffd2b0); box-shadow: 0 4px 0 #ea7a2e; }
+.ma-streak b { color: #c2410c; font-size: 14px; }
+.ma-n { position: absolute; top: -6px; left: -4px; background: var(--bad); color: #fff; font-style: normal; font-weight: 900; font-size: 12px; min-width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; border: 2px solid #fff; }
+
+/* ───── קומבו ───── */
+.mult { display: inline-block; background: linear-gradient(90deg, #f97316, #ef4444); color: #fff; border-radius: 99px; padding: 1px 9px; font-weight: 900; font-size: 14px; animation: okPop .5s; }
+.combo-pop { position: fixed; z-index: 70; top: 22%; left: 50%; transform: translate(-50%, 0); pointer-events: none; font-family: 'Secular One', sans-serif; font-size: 34px; color: #fff; text-align: center;
+  background: linear-gradient(135deg, #fb923c, #ef4444); padding: 8px 22px; border-radius: 22px; box-shadow: 0 6px 0 #9a3412, 0 14px 30px rgba(239, 68, 68, .4); animation: comboPop 1.3s cubic-bezier(.2, 1.5, .4, 1) both; white-space: nowrap; }
+.combo-pop small { display: block; font-family: 'Rubik', sans-serif; font-size: 15px; font-weight: 800; }
+.combo-pop.hot { background: linear-gradient(135deg, #facc15, #f97316, #db2777); }
+@keyframes comboPop { 0% { transform: translate(-50%, 30px) scale(.3) rotate(-10deg); opacity: 0; } 20% { transform: translate(-50%, 0) scale(1.1) rotate(3deg); opacity: 1; } 75% { transform: translate(-50%, -6px) scale(1); opacity: 1; } 100% { transform: translate(-50%, -40px) scale(.9); opacity: 0; } }
+
+/* ───── ריצת הבלש / בוס ───── */
+.r-score { background: #fff; border-radius: 99px; padding: 4px 12px; font-weight: 800; white-space: nowrap; display: flex; gap: 3px; align-items: baseline; }
+.r-score b { font-size: 18px; color: var(--c); font-variant-numeric: tabular-nums; }
+.r-score small { font-size: 12px; color: var(--muted); }
+.r-meta { display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: var(--muted); margin: 8px 2px 6px; }
+.r-combo { background: #e2e8f0; color: var(--muted); border-radius: 12px; padding: 3px 12px; font-weight: 900; font-size: 18px; }
+.r-combo.on { background: linear-gradient(90deg, #f97316, #ef4444); color: #fff; }
+.timer { height: 12px; border-radius: 99px; background: rgba(255, 255, 255, .7); overflow: hidden; margin-bottom: 10px; box-shadow: inset 0 2px 0 rgba(0, 0, 0, .06); }
+.timer i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #22c55e, #84cc16); border-radius: 99px; }
+.timer.low i { background: linear-gradient(90deg, #ef4444, #f97316); animation: pulse .5s infinite; }
+.pts-pop { position: fixed; z-index: 70; pointer-events: none; font-family: 'Secular One', sans-serif; font-size: 30px; color: var(--ok); text-shadow: 0 2px 0 #fff, 0 0 10px #fff; transform: translate(-50%, -50%); animation: ptsUp 1s ease-out both; }
+@keyframes ptsUp { to { transform: translate(-50%, -140%) scale(1.3); opacity: 0; } }
+.boss { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #3b0764, #6d28d9); color: #fff; border-radius: 20px; padding: 10px 12px; margin: 8px 0; box-shadow: var(--sh); }
+.boss-e { font-size: 50px; line-height: 1; animation: bob 1.6s ease-in-out infinite; }
+.boss-e.ouch { animation: ouch .45s; }
+@keyframes ouch { 30% { transform: scale(.75) rotate(-18deg); filter: brightness(2) saturate(0); } 60% { transform: scale(1.1) rotate(10deg); } }
+.boss-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.boss-info small { opacity: .8; font-size: 12px; }
+.hp { height: 12px; background: rgba(255, 255, 255, .2); border-radius: 99px; overflow: hidden; }
+.hp i { display: block; height: 100%; background: linear-gradient(90deg, #f43f5e, #fb923c); border-radius: 99px; transition: width .4s; }
+.hearts { font-size: 18px; white-space: nowrap; }
+.boss-intro { animation: bob 1.4s ease-in-out infinite; }
+.medal-big { font-size: 96px; line-height: 1; animation: spinIn .9s cubic-bezier(.2, 1.4, .4, 1) both; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .2)); }
+
+/* ───── תיבת אוצר ───── */
+.chest-wrap { display: flex; justify-content: center; padding: 18px 0 6px; }
+.chest { font-size: 96px; line-height: 1; animation: floaty 2s ease-in-out infinite; filter: drop-shadow(0 8px 8px rgba(0, 0, 0, .2)); }
+.chest.shake { animation: wiggle .5s; }
+.chest.open { animation: spinIn .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+.chest-msg { text-align: center; font-size: 18px; line-height: 1.6; min-height: 60px; }
+.chest-msg small { color: var(--muted); }
+
+/* ───── תגים ───── */
+.badge-pop { position: fixed; z-index: 80; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(92vw, 400px);
+  display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, #fffbeb, #fde68a); border: 3px solid var(--gold); border-radius: 22px; padding: 10px 14px; box-shadow: 0 6px 0 var(--gold-d), 0 16px 30px rgba(0, 0, 0, .2);
+  animation: badgeIn .55s cubic-bezier(.2, 1.5, .4, 1) both; cursor: pointer; }
+.badge-pop.out { animation: badgeOut .35s ease-in both; }
+@keyframes badgeIn { from { transform: translate(-50%, -140%) scale(.8); } }
+@keyframes badgeOut { to { transform: translate(-50%, -140%); opacity: 0; } }
+.bp-e { font-size: 46px; animation: spinIn .8s .15s both; }
+.bp-t { display: flex; flex-direction: column; }
+.bp-t small { font-weight: 800; color: var(--gold-d); }
+.bp-t b { font-size: 20px; }
+.bp-t span { font-size: 14px; color: var(--muted); }
+.badge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.bdg { background: #f1f5f9; border-radius: 18px; padding: 10px 4px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; font-size: 13px; opacity: .55; }
+.bdg.on { background: linear-gradient(180deg, #fffbeb, #fef3c7); opacity: 1; box-shadow: 0 3px 0 var(--gold-d); }
+.bdg-e { font-size: 34px; }
+.bdg small { color: var(--muted); font-size: 11px; line-height: 1.3; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

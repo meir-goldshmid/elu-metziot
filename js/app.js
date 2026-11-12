@@ -13,10 +13,12 @@ const STATIONS = window.STATIONS, SHOP = window.SHOP;
 
 /* ───────── מצב שמור ───────── */
 const KEY = 'eluMetziot.v1';
-const DEF = { name: '', coins: 0, stars: {}, unlockAll: false, sound: true, owned: [], wear: {} };
+const DEF = () => ({ name: '', coins: 0, stars: {}, unlockAll: false, sound: true, owned: [], wear: {}, badges: [], missed: [], day: { last: '', n: 0 }, chest: '' });
+const DEF_STATS = { right: 0, bestStreak: 0, fixed: 0, rushes: 0, rushBest: 0, medal: 0, bosses: 0, chests: 0, bought: 0 };
 let ST;
-try { ST = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { ST = Object.assign({}, DEF); }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { /* פרטי */ } updateTopbar(); }
+try { ST = Object.assign(DEF(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { ST = DEF(); }
+ST.stats = Object.assign({}, DEF_STATS, ST.stats);
+function save() { checkBadges(); try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { /* פרטי */ } updateTopbar(); }
 const nm = s => String(s).replace(/\{name\}/g, esc(ST.name || 'חבר'));
 const totalStars = () => Object.values(ST.stars).reduce((a, b) => a + b, 0);
 const isDone = i => !!ST.stars[STATIONS[i].id];
@@ -50,6 +52,10 @@ const Sound = {
   star(i) { this.tone(660 + i * 220, .3, 'triangle', 0, .2); this.tone(990 + i * 220, .3, 'sine', .08, .12); },
   win() { [523, 659, 784, 659, 784, 1047].forEach((f, i) => this.tone(f, .28, 'triangle', i * .13, .17)); },
   whoosh() { this.tone(300, .15, 'sine', 0, .08); this.tone(600, .12, 'sine', .05, .06); },
+  combo(n) { const b = 523 * Math.pow(2, Math.min(n, 12) / 12); [0, 4, 7, 12].forEach((s, i) => this.tone(b * Math.pow(2, s / 12), .14, 'square', i * .05, .05)); },
+  hit() { this.tone(160, .18, 'square', 0, .12); this.tone(90, .3, 'sawtooth', .05, .1); },
+  tick() { this.tone(1200, .04, 'square', 0, .04); },
+  badge() { [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, .35, 'triangle', i * .1, .15)); },
 };
 
 /* ───────── הקראה (אם יש קול עברי במכשיר) ───────── */
@@ -120,23 +126,26 @@ const FX = {
   center(el) { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; },
 };
 
-/* ───────── הינשוף ───────── */
+/* ───────── יוני הבלש (יונה – עוף טהור) ───────── */
 const OWL_SVG = `<svg viewBox="0 0 120 130" class="owl-svg" aria-hidden="true">
-<ellipse cx="60" cy="125" rx="32" ry="4.5" fill="rgba(0,0,0,.15)"/>
-<path d="M24 52 L27 16 L50 36 Z" fill="#7a4a26"/><path d="M96 52 L93 16 L70 36 Z" fill="#7a4a26"/>
-<g class="wing-r"><path d="M100 70 q16 24 -6 46 q-8 -22 6 -46z" fill="#7a4a26"/></g>
-<g class="wing-l"><path d="M20 70 q-16 24 6 46 q8 -22 -6 -46z" fill="#7a4a26"/></g>
-<ellipse cx="60" cy="78" rx="43" ry="46" fill="#9c6236"/>
-<ellipse cx="60" cy="93" rx="28" ry="30" fill="#f3d9b1"/>
-<path d="M44 86q4 4 8 0M56 94q4 4 8 0M68 86q4 4 8 0M50 104q4 4 8 0M62 104q4 4 8 0" stroke="#d6a86f" stroke-width="2" fill="none" stroke-linecap="round"/>
-<path d="M44 35 Q60 22 76 35 Q60 31 44 35Z" fill="#3b5bdb"/><path d="M46 34 Q60 26 74 34" stroke="#93c5fd" stroke-width="1.5" fill="none"/>
-<circle cx="42" cy="57" r="17" fill="#fff" stroke="#6b3f1d" stroke-width="3"/><circle cx="78" cy="57" r="17" fill="#fff" stroke="#6b3f1d" stroke-width="3"/>
-<g class="pupils"><circle cx="44" cy="59" r="8" fill="#1e1b4b"/><circle cx="80" cy="59" r="8" fill="#1e1b4b"/><circle cx="47" cy="55.5" r="2.8" fill="#fff"/><circle cx="83" cy="55.5" r="2.8" fill="#fff"/></g>
-<g class="lids"><ellipse cx="42" cy="57" rx="18.5" ry="18.5" fill="#9c6236"/><ellipse cx="78" cy="57" rx="18.5" ry="18.5" fill="#9c6236"/></g>
-<path class="brows" d="M28 38 q12 -6 22 0 M70 38 q10 -6 22 0" stroke="#5a3418" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-<circle cx="25" cy="74" r="5.5" fill="#fb7185" opacity=".45"/><circle cx="95" cy="74" r="5.5" fill="#fb7185" opacity=".45"/>
-<path d="M53 69 L67 69 L60 81 Z" fill="#f59e0b" stroke="#b45309" stroke-width="1.5" stroke-linejoin="round"/>
-<path d="M48 120 l-5 5 M48 120 v6 M48 120 l5 5 M72 120 l-5 5 M72 120 v6 M72 120 l5 5" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+<ellipse cx="60" cy="125" rx="30" ry="4.5" fill="rgba(0,0,0,.15)"/>
+<path d="M60 108 L40 124 Q60 116 80 124 Z" fill="#9aa6c0"/>
+<g class="wing-r"><path d="M92 74 q26 10 18 40 q-20 0 -26 -18 q-2 -14 8 -22z" fill="#c9d2e5"/><path d="M104 100 q6 8 4 16 q-8 -2 -10 -10z" fill="#7d89a6"/></g>
+<g class="wing-l"><path d="M28 74 q-26 10 -18 40 q20 0 26 -18 q2 -14 -8 -22z" fill="#c9d2e5"/><path d="M16 100 q-6 8 -4 16 q8 -2 10 -10z" fill="#7d89a6"/></g>
+<ellipse cx="60" cy="90" rx="36" ry="32" fill="#eef1f8"/>
+<ellipse cx="60" cy="98" rx="24" ry="22" fill="#fff"/>
+<path d="M38 76 q22 12 44 0" stroke="#7dd3b8" stroke-width="6" fill="none" stroke-linecap="round" opacity=".75"/>
+<path d="M38 76 q22 12 44 0" stroke="#b794f6" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+<circle cx="60" cy="48" r="27" fill="#eef1f8"/>
+<path d="M42 30 Q60 15 78 30 Q60 25 42 30Z" fill="#3b5bdb"/><path d="M44 29 Q60 19 76 29" stroke="#93c5fd" stroke-width="1.5" fill="none"/>
+<circle cx="49" cy="48" r="8" fill="#fff" stroke="#94a3b8" stroke-width="1.5"/><circle cx="71" cy="48" r="8" fill="#fff" stroke="#94a3b8" stroke-width="1.5"/>
+<g class="pupils"><circle cx="50" cy="49" r="5" fill="#7c2d12"/><circle cx="72" cy="49" r="5" fill="#7c2d12"/><circle cx="50" cy="49" r="2.8" fill="#111827"/><circle cx="72" cy="49" r="2.8" fill="#111827"/><circle cx="51.8" cy="46.8" r="1.6" fill="#fff"/><circle cx="73.8" cy="46.8" r="1.6" fill="#fff"/></g>
+<g class="lids"><ellipse cx="49" cy="48" rx="9" ry="9" fill="#eef1f8"/><ellipse cx="71" cy="48" rx="9" ry="9" fill="#eef1f8"/></g>
+<path class="brows" d="M41 37 q7 -3 14 0 M65 37 q7 -3 14 0" stroke="#64748b" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+<circle cx="40" cy="60" r="4.5" fill="#fb7185" opacity=".4"/><circle cx="80" cy="60" r="4.5" fill="#fb7185" opacity=".4"/>
+<ellipse cx="60" cy="56" rx="4.5" ry="2.5" fill="#fff" stroke="#cbd5e1" stroke-width="1"/>
+<path d="M55.5 58 L64.5 58 L60 66 Z" fill="#fb923c" stroke="#c2410c" stroke-width="1.3" stroke-linejoin="round"/>
+<path d="M51 119 l-5 5 M51 119 v6 M51 119 l5 5 M69 119 l-5 5 M69 119 v6 M69 119 l5 5" stroke="#f472b6" stroke-width="3" stroke-linecap="round"/>
 <g class="mag"><line x1="103" y1="108" x2="114" y2="124" stroke="#6b3f1d" stroke-width="6" stroke-linecap="round"/><circle cx="97" cy="98" r="13" fill="rgba(186,230,253,.55)" stroke="#475569" stroke-width="4"/><path d="M90 93 q4 -5 10 -4" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/></g>
 </svg>`;
 function owl(cls = '') {
@@ -146,9 +155,9 @@ function owl(cls = '') {
 
 /* ───────── שלד ───────── */
 const screen = $('#screen');
-let SESS = null;
+let SESS = null, RUN = null;
 function setScreen(html, cls = '') {
-  Speech.stop();
+  Speech.stop(); RUN = null;
   screen.className = 'screen ' + cls;
   screen.innerHTML = html;
   window.scrollTo(0, 0);
@@ -209,7 +218,7 @@ function renderWelcome() {
       <div class="logo-perek">פרק אֵלּוּ מְצִיאוֹת • בבא מציעא</div>
     </div>
     ${owl('xl bob wave')}
-    <div class="bubble bubble-up">שלום! אני <b>ינשופי הבלש</b> 🔍<br>איך קוראים לך?</div>
+    <div class="bubble bubble-up">שלום! אני <b>יוֹנִי הבלש</b> 🕊️🔍<br>איך קוראים לך?</div>
     <input id="nameIn" class="name-in" maxlength="16" placeholder="השם שלי..." value="${esc(ST.name)}" autocomplete="off">
     <button id="go" class="btn big primary pulse">יוצאים למסע! 🚀</button>
   </div>`, 's-welcome');
@@ -225,7 +234,7 @@ function renderWelcome() {
 
 /* ───────── מפת המסע ───────── */
 function renderMap() {
-  $('#topbar').classList.remove('hidden'); updateTopbar();
+  $('#topbar').classList.remove('hidden'); touchDay(); updateTopbar();
   const nodes = STATIONS.length + 1, GAP = 150, TOP = 90;
   const xs = [50, 26, 70, 30, 72, 28, 68, 50, 50, 30];
   const H = TOP + (nodes - 1) * GAP + 150;
@@ -259,10 +268,14 @@ function renderMap() {
     `כל תחנה = משנה חדשה + משחקים 🎮`,
     `אסוף מטבעות 🪙 וקנה לי כובעים בחנות 🛍️`,
     `כל טעות היא הזדמנות ללמוד! 💡`,
+    `3 תשובות נכונות ברצף = 🔥 קומבו ומטבעות כפולים!`,
+    `נסה את ⚡ ריצת הבלש – כמה נקודות תשיג?`,
+    `אל תשכח לפתוח את 🎁 תיבת האוצר היומית!`,
   ];
   setScreen(`
   <div class="map">
     <div class="map-hello">${owl('sm')}<div class="bubble bubble-side"><b>שלום ${esc(ST.name)}!</b><br>${allDone() ? 'סיימת את כל הפרק! 🎉 לחץ על הגביע 🏆' : pick(msgs)}</div></div>
+    <div class="map-actions" id="mact"></div>
     <div class="map-track" style="height:${H}px">
       <span class="cloud" style="top:20px;--t:38s">☁️</span><span class="cloud" style="top:340px;--t:52s;--dl:-20s">☁️</span><span class="cloud" style="top:760px;--t:45s;--dl:-8s">☁️</span>
       <svg class="map-path" viewBox="0 0 100 ${H}" preserveAspectRatio="none"><path d="${d}" class="road"/><path d="${d}" class="road-dash"/></svg>
@@ -279,13 +292,14 @@ function renderMap() {
     if (!isOpen(+i)) { Sound.bad(); bump(b); toast('🔒 קודם מסיימים את התחנה הקודמת'); return; }
     Sound.click(); startStation(+i);
   });
+  paintMapActions();
   const curEl = $('.node.current');
   if (curEl && cur > 0) setTimeout(() => curEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
 }
 
 /* ───────── תחנה: לימוד ───────── */
 function startStation(i) {
-  SESS = { i, st: STATIONS[i], mistakes: 0, correct: 0, earned: 0, gi: 0 };
+  SESS = { i, st: STATIONS[i], mistakes: 0, correct: 0, earned: 0, gi: 0, streak: 0, best: 0 };
   renderLearn(0, 1);
 }
 function renderLearn(ci, dir = 1) {
@@ -383,14 +397,15 @@ function gameQuiz(g, done) {
       const goOn = () => { qi++; qi < qs.length ? show() : done(); };
       if (o.ok) {
         b.classList.remove('dim'); b.classList.add('ok');
-        Sound.good(); FX.burst(...FX.center(b)); addCoins(10, b);
-        if (SESS) { SESS.correct++; SESS.earned += 10; }
-        feedback(true, `<b>${praise()}</b> ${q.why || ''}`, goOn);
+        Sound.good(); FX.burst(...FX.center(b)); const gain = hit(q._k); addCoins(gain, b);
+        if (SESS) { SESS.correct++; SESS.earned += gain; }
+        feedback(true, `<b>${praise()}</b>${multTag(gain)} ${q.why || ''}`, goOn);
       } else {
         b.classList.remove('dim'); b.classList.add('bad');
         const good = $$('.opt').find(x => opts[+x.dataset.k].ok); good.classList.remove('dim'); good.classList.add('ok', 'reveal');
         Sound.bad(); bump($('.q-card'));
         if (SESS) SESS.mistakes++;
+        miss(q._k);
         feedback(false, `<b>לא נורא! 💡</b> ${q.why || ''}`, goOn, 'הבנתי ←');
       }
     });
@@ -437,14 +452,14 @@ function gameSort(g, done) {
       card.style.transition = 'transform .45s cubic-bezier(.5,-0.3,.7,1), opacity .45s';
       card.style.transform = `translate(${bx - cx}px, ${by - cy}px) scale(.15) rotate(${a === 'mine' ? -25 : 25}deg)`; card.style.opacity = '0';
       setTimeout(() => { bump(bin); FX.burst(bx, by, a === 'mine' ? ['🎒', '⭐', '✨'] : ['📢', '⭐', '✨'], 8); }, 380);
-      Sound.good(); addCoins(10, bin);
-      SESS.correct++; SESS.earned += 10;
-      feedback(true, `<b>${praise()}</b> ${it.why}`, goOn);
+      Sound.good(); const gain = hit(it._k); addCoins(gain, bin);
+      SESS.correct++; SESS.earned += gain;
+      feedback(true, `<b>${praise()}</b>${multTag(gain)} ${it.why}`, goOn);
     } else {
       card.classList.remove('enter'); card.style.transform = ''; bump(card); card.classList.add('wrong');
       setTimeout(() => card.classList.remove('wrong'), 500);
       right.classList.add('hint-ok'); setTimeout(() => right.classList.remove('hint-ok'), 1600);
-      Sound.bad(); SESS.mistakes++;
+      Sound.bad(); SESS.mistakes++; miss(it._k);
       feedback(false, `<b>אופס!</b> התשובה: <b>${it.a === 'mine' ? '🎒 שלו' : '📢 חייב להכריז'}</b>. ${it.why}`, goOn, 'הבנתי ←');
     }
   };
@@ -479,7 +494,7 @@ function gameMemory(g, done) {
     <div class="pbar"><i id="mp" style="width:0%"></i></div>
     <div class="mem-grid">${cards.map((c, i) => `
       <button class="mcard" data-i="${i}" style="--d:${i * 40}ms" aria-label="קלף">
-        <span class="mc-in"><span class="mc-front">🦉</span><span class="mc-back ${c.kind}">${c.t}</span></span>
+        <span class="mc-in"><span class="mc-front">🕊️</span><span class="mc-back ${c.kind}">${c.t}</span></span>
       </button>`).join('')}</div>
     <div class="fb" id="fb"></div>
   </div>`, 's-game');
@@ -510,6 +525,309 @@ function gameMemory(g, done) {
 }
 const GAMES = { quiz: gameQuiz, sort: gameSort, memory: gameMemory };
 
+/* ───────── רצף (קומבו), טעויות לחזרה ───────── */
+const comboMult = s => s >= 8 ? 3 : s >= 4 ? 2 : 1;
+const multTag = gain => gain > 10 ? ` <span class="mult">🔥 ×${gain / 10}</span>` : '';
+function hit(k) {
+  ST.stats.right++; unmiss(k);
+  let mult = 1;
+  if (SESS) {
+    SESS.streak = (SESS.streak || 0) + 1;
+    SESS.best = Math.max(SESS.best || 0, SESS.streak);
+    ST.stats.bestStreak = Math.max(ST.stats.bestStreak, SESS.streak);
+    mult = comboMult(SESS.streak);
+    if (SESS.streak >= 3) comboPop(SESS.streak, mult);
+  }
+  save();
+  return 10 * mult;
+}
+function miss(k) {
+  if (SESS) SESS.streak = 0;
+  if (k && !ST.missed.includes(k)) { ST.missed.push(k); if (ST.missed.length > 40) ST.missed.shift(); }
+  save();
+}
+function unmiss(k) { const i = ST.missed.indexOf(k); if (i >= 0) { ST.missed.splice(i, 1); ST.stats.fixed++; } }
+function comboPop(n, mult) {
+  const el = document.createElement('div'); el.className = 'combo-pop' + (mult >= 3 ? ' hot' : '');
+  el.innerHTML = `🔥 ${n} ברצף!${mult > 1 ? `<small>מטבעות ×${mult}</small>` : ''}`;
+  document.body.appendChild(el); setTimeout(() => el.remove(), 1300);
+  setTimeout(() => Sound.combo(n), 150);
+}
+
+/* ───────── מאגר כל השאלות (לריצה, לבוס ולחזרה) ───────── */
+const POOL = [];
+STATIONS.forEach((s, si) => s.games.forEach((g, gi) => {
+  if (g.type === 'quiz') g.questions.forEach((q, k) => { q._k = `${s.id}.${gi}.${k}`; POOL.push(Object.assign({ si }, q)); });
+  if (g.type === 'sort') g.items.forEach((it, k) => {
+    it._k = `${s.id}.${gi}.${k}`;
+    POOL.push({ si, _k: it._k, art: [it.e], q: `${it.t} – מה הדין?`, o: it.a === 'mine' ? ['🎒 שלו!', '📢 חייב להכריז'] : ['📢 חייב להכריז', '🎒 שלו!'], why: it.why });
+  });
+}));
+const byKey = k => POOL.find(p => p._k === k);
+ST.missed = ST.missed.filter(byKey);
+const rushPool = () => POOL.filter(p => isDone(p.si) || ST.unlockAll);
+
+/* ───────── ריצת הבלש ⚡ וקרב הבוס ⚔️ ───────── */
+const MEDALS = [null, ['🥉', 'ארד'], ['🥈', 'כסף'], ['🥇', 'זהב'], ['💎', 'יהלום']];
+const medalFor = acc => acc >= .95 ? 4 : acc >= .85 ? 3 : acc >= .7 ? 2 : 1;
+function startRush(boss) {
+  const pool = boss ? POOL.slice() : rushPool();
+  if (!boss && pool.length < 6) { Sound.bad(); toast('⚡ ריצת הבלש נפתחת אחרי שמסיימים תחנה ראשונה'); return; }
+  let queue = shuffle(pool); if (!boss) queue = queue.slice(0, 12);
+  const B = boss ? { hp: 10, max: 10 } : null;
+  const HEARTS = 5;
+  let qi = 0, score = 0, right = 0, total = 0, hearts = HEARTS;
+  SESS = { i: -1, st: null, mistakes: 0, correct: 0, earned: 0, streak: 0, best: 0 };
+  const col = boss ? '#7c3aed' : '#f59e0b';
+  setScreen(`
+  <div class="game rush ${boss ? 'is-boss' : ''}" style="--c:${col}">
+    <div class="g-head"><button class="x-btn" id="exit" aria-label="יציאה">✕</button>
+      <div class="g-title">${boss ? '⚔️ קרב הבוס' : '⚡ ריצת הבלש'}</div>
+      <div class="r-score"><b id="rs">0</b><small>נק׳</small></div></div>
+    ${boss ? `<div class="boss"><div class="boss-e" id="be">🙈</div><div class="boss-info"><b>הַמִּתְעַלֵּם</b><small>רוצה שכולם יתעלמו מאבידות!</small><div class="hp"><i id="hp"></i></div></div><div class="hearts" id="hearts"></div></div>`
+      : `<div class="r-meta"><span id="rn"></span><span class="r-combo" id="rc">×1</span></div>`}
+    <div class="timer" id="tw"><i id="tm"></i></div>
+    <div id="rq"></div>
+  </div>`, 's-game');
+  const run = {}; RUN = run;
+  const alive = () => RUN === run;
+  bindExit();
+  const paint = () => {
+    $('#rs').textContent = score.toLocaleString('en-US');
+    if (boss) { $('#hp').style.width = (B.hp / B.max * 100) + '%'; $('#hearts').textContent = '❤️'.repeat(hearts) + '🖤'.repeat(HEARTS - hearts); }
+    else {
+      $('#rn').textContent = `שאלה ${Math.min(qi, queue.length)}/${queue.length}`;
+      const rc = $('#rc'), m = '×' + comboMult(SESS.streak);
+      if (rc.textContent !== m) { rc.textContent = m; rc.classList.toggle('on', m !== '×1'); bump(rc); }
+    }
+  };
+  const pop = (txt, el) => {
+    const [x, y] = FX.center(el), p = document.createElement('div');
+    p.className = 'pts-pop'; p.textContent = txt; p.style.left = x + 'px'; p.style.top = y + 'px';
+    document.body.appendChild(p); setTimeout(() => p.remove(), 1000);
+  };
+  const next = () => {
+    if (!alive()) return;
+    if (boss ? (B.hp <= 0 || hearts <= 0) : qi >= queue.length) return end();
+    if (boss && qi >= queue.length) queue = queue.concat(shuffle(pool));
+    const q = queue[qi++]; total++;
+    const opts = shuffle(q.o.map((t, k) => ({ t, ok: k === 0 })));
+    $('#rq').innerHTML = `
+      <div class="q-card r-card">${q.scene ? `<div class="scene">${q.scene}</div>` : `<div class="q-art">${artHTML(q.art)}</div>`}<div class="q-text">${nm(q.q)}</div></div>
+      <div class="q-opts">${opts.map((o, k) => `<button class="opt" data-k="${k}" style="--d:${k * 60}ms"><span class="opt-l">${'אבגד'[k]}</span><span>${o.t}</span></button>`).join('')}</div>
+      <div class="fb" id="fb"></div>`;
+    paint();
+    const T = (boss ? 22 : 18) * 1000, t0 = performance.now(), tw = $('#tw'), tm = $('#tm');
+    let answered = false, lastSec = 99;
+    const tick = () => {
+      if (!alive() || answered) return;
+      const left = Math.max(0, 1 - (performance.now() - t0) / T);
+      tm.style.width = left * 100 + '%'; tw.classList.toggle('low', left < .25);
+      const sec = Math.ceil(left * T / 1000);
+      if (left < .25 && sec !== lastSec) { lastSec = sec; Sound.tick(); }
+      if (left <= 0) return answer(null);
+      requestAnimationFrame(tick);
+    };
+    const answer = b => {
+      if (answered || !alive()) return; answered = true;
+      const left = Math.max(0, 1 - (performance.now() - t0) / T), o = b ? opts[+b.dataset.k] : null;
+      $$('#rq .opt').forEach(x => x.classList.add('dim'));
+      if (o && o.ok) {
+        b.classList.remove('dim'); b.classList.add('ok');
+        const mult = hit(q._k) / 10, pts = 100 * mult + Math.round(left * 50);
+        score += pts; right++; SESS.correct++;
+        Sound.good(); pop(`+${pts}`, b); FX.burst(...FX.center(b), ['⭐', '✨'], 6);
+        if (boss) {
+          B.hp--; const be = $('#be');
+          setTimeout(() => { Sound.hit(); be.classList.remove('ouch'); void be.offsetWidth; be.classList.add('ouch'); FX.burst(...FX.center(be), ['💥', '⭐', '💫'], 8); paint(); }, 250);
+        }
+        paint(); setTimeout(next, boss ? 950 : 800);
+      } else {
+        SESS.mistakes++; miss(q._k); Sound.bad();
+        if (b) { b.classList.remove('dim'); b.classList.add('bad'); }
+        const good = $$('#rq .opt').find(x => opts[+x.dataset.k].ok); good.classList.remove('dim'); good.classList.add('ok', 'reveal');
+        if (boss) { hearts--; bump($('#hearts')); }
+        paint();
+        feedback(false, `<b>${o ? 'לא נורא! 💡' : '⏰ נגמר הזמן!'}</b> ${q.why || ''}`, next, 'המשך ←');
+      }
+    };
+    $$('#rq .opt').forEach(b => b.onclick = () => answer(b));
+    tick();
+  };
+  const end = () => {
+    if (boss) return bossEnd(B.hp <= 0, score);
+    const acc = right / total, medal = medalFor(acc), coins = Math.round(score / 40);
+    const record = score > ST.stats.rushBest;
+    ST.stats.rushes++; ST.stats.medal = Math.max(ST.stats.medal, medal);
+    if (record) ST.stats.rushBest = score;
+    ST.coins += coins; save();
+    const [me, mn] = MEDALS[medal];
+    setScreen(`
+    <div class="results" style="--c:#f59e0b">
+      <div class="medal-big">${me}</div>
+      <h2>מדליית ${mn}!</h2>
+      <div class="res-sub">ענית נכון על <b>${right}</b> מתוך ${total}</div>
+      <div class="champ-score">${score.toLocaleString('en-US')}<small> נק׳</small></div>
+      ${record ? `<div class="unlock gold">🏅 שיא חדש!</div>` : `<div class="res-sub">השיא שלך: ${ST.stats.rushBest.toLocaleString('en-US')}</div>`}
+      <div class="res-stats">
+        <div><b>${SESS.best}</b><small>🔥 רצף שיא</small></div>
+        <div><b>${Math.round(acc * 100)}%</b><small>🎯 דיוק</small></div>
+        <div><b>${coins}</b><small>🪙 מטבעות</small></div>
+      </div>
+      <div class="res-btns"><button class="btn big gold pulse" id="again">⚡ עוד ריצה</button><button class="btn ghost" id="toMap">🗺️ למפה</button></div>
+    </div>`, 's-results');
+    Sound.win(); FX.confetti(40 + medal * 40); if (record) setTimeout(() => FX.rain(80), 600);
+    $('#again').onclick = () => { Sound.click(); startRush(false); };
+    $('#toMap').onclick = () => { Sound.click(); renderMap(); };
+  };
+  next();
+}
+function startBoss() {
+  setScreen(`
+  <div class="splash" style="--c:#7c3aed">
+    <div class="splash-tag">קרב הבוס</div>
+    <div class="splash-ic boss-intro">🙈</div>
+    <h2>הַמִּתְעַלֵּם</h2>
+    <div class="owl-talk">${owl('sm talk')}<div class="bubble bubble-side">זהירות ${esc(ST.name)}! <b>המתעלם</b> רוצה שכולם יעברו ליד אבידות ו<b>יתעלמו</b>. אבל התורה אמרה "<b>לא תוכל להתעלם</b>"!<br>כל תשובה נכונה = מכה לבוס 💥 • יש לך 5 ❤️</div></div>
+    <button class="btn big gold pulse" id="start">⚔️ להילחם!</button>
+  </div>`, 's-splash');
+  $('#start').onclick = () => { Sound.click(); startRush(true); };
+}
+function bossEnd(won, score) {
+  if (won) { ST.stats.bosses++; ST.coins += 100; save(); }
+  setScreen(`
+  <div class="results" style="--c:#7c3aed">
+    <div class="medal-big">${won ? '🏆' : '🙈'}</div>
+    <h2>${won ? 'ניצחת את המתעלם!' : 'המתעלם ברח… הפעם!'}</h2>
+    <div class="res-sub">${won ? `"השב תשיבם" – ${esc(ST.name)} לא מתעלם! 💪` : 'כל טעות מלמדת אותנו משהו. נסה שוב!'}</div>
+    <div class="champ-score">${score.toLocaleString('en-US')}<small> נק׳</small></div>
+    ${won ? `<div class="unlock gold">🪙 +100 מטבעות פרס!</div>` : ''}
+    ${owl('md bob ' + (won ? 'happy' : ''))}
+    <div class="res-btns"><button class="btn big gold pulse" id="again">⚔️ ${won ? 'עוד קרב' : 'נסה שוב'}</button><button class="btn ghost" id="toMap">🗺️ למפה</button></div>
+  </div>`, 's-results');
+  if (won) { Sound.win(); FX.confetti(200); setTimeout(() => FX.rain(120), 600); } else Sound.bad();
+  $('#again').onclick = () => { Sound.click(); startRush(true); };
+  $('#toMap').onclick = () => { Sound.click(); renderMap(); };
+}
+
+/* ───────── חזרה על טעויות 🔁 ───────── */
+function startReview() {
+  const qs = ST.missed.map(byKey).filter(Boolean).slice(-8);
+  if (!qs.length) { toast('🎉 אין טעויות לחזור עליהן – מעולה!'); return; }
+  SESS = { i: -1, st: null, mistakes: 0, correct: 0, earned: 0, streak: 0, best: 0 };
+  gameQuiz({ title: '🔁 חזרה על טעויות', questions: shuffle(qs), keep: true }, () => {
+    const left = ST.missed.length;
+    setScreen(`
+    <div class="results" style="--c:#0ea5e9">
+      <div class="res-badge">🔁</div>
+      <h2>${SESS.correct === qs.length ? 'תיקנת הכול!' : 'כל הכבוד על החזרה!'}</h2>
+      <div class="res-sub">תיקנת <b>${SESS.correct}</b> מתוך ${qs.length} טעויות</div>
+      <div class="unlock">${left ? `נשארו עוד <b>${left}</b> שאלות לחזרה 💪` : 'אין יותר טעויות לחזרה! 🧹✨'}</div>
+      ${owl('md happy bob')}
+      <div class="res-btns">${left ? `<button class="btn big primary pulse" id="again">🔁 עוד חזרה</button>` : ''}<button class="btn ${left ? 'ghost' : 'big primary pulse'}" id="toMap">🗺️ למפה</button></div>
+    </div>`, 's-results');
+    Sound.win(); FX.confetti(60 + SESS.correct * 15);
+    if ($('#again')) $('#again').onclick = () => { Sound.click(); startReview(); };
+    $('#toMap').onclick = () => { Sound.click(); renderMap(); };
+  });
+}
+
+/* ───────── יום ברצף ותיבת אוצר יומית 🎁 ───────── */
+const dayKey = (d = new Date()) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+function touchDay() {
+  const t = dayKey(); if (ST.day.last === t) return;
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  ST.day = { last: t, n: ST.day.last === dayKey(y) ? ST.day.n + 1 : 1 }; save();
+}
+function openChest() {
+  if (ST.chest === dayKey()) { Sound.bad(); toast('🎁 כבר פתחת היום – חזור מחר לתיבה חדשה!'); return; }
+  openModal(`
+    <h3>🎁 תיבת האוצר היומית</h3>
+    <div class="chest-wrap"><button class="chest" id="chest" aria-label="פתח תיבה">🧰</button></div>
+    <div class="chest-msg" id="cm">לחץ על התיבה כדי לפתוח!</div>`);
+  let taps = 0;
+  $('#chest').onclick = e => {
+    const c = e.currentTarget;
+    if (ST.chest === dayKey()) return;
+    taps++; Sound.flip(); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
+    if (taps < 3) { $('#cm').textContent = taps === 1 ? 'עוד קצת…' : 'כמעט נפתח!'; return; }
+    const n = 15 + (Math.random() * 26 | 0), bonus = 5 * Math.min(ST.day.n, 7);
+    ST.chest = dayKey(); ST.stats.chests++;
+    c.textContent = '💰'; c.classList.add('open');
+    FX.burst(...FX.center(c), ['🪙', '✨', '⭐', '💎'], 14); FX.confetti(100);
+    addCoins(n + bonus, c); Sound.win();
+    $('#cm').innerHTML = `קיבלת <b>${n}</b> 🪙${bonus ? `<br>+ בונוס רצף ${ST.day.n} ימים: <b>${bonus}</b> 🔥` : ''}<br><small>חזור מחר לתיבה חדשה!</small>`;
+    paintMapActions();
+  };
+}
+
+/* ───────── תגים 🏅 ───────── */
+const doneCount = () => STATIONS.filter((s, i) => isDone(i)).length;
+const BADGES = [
+  { id: 'first', e: '🚀', name: 'יוצא לדרך', desc: 'סיימת תחנה ראשונה', test: () => doneCount() >= 1 },
+  { id: 'half', e: '🧭', name: 'חצי הדרך', desc: 'סיימת 4 תחנות', test: () => doneCount() >= 4 },
+  { id: 'all', e: '🏆', name: 'הדרן!', desc: 'סיימת את כל הפרק', test: () => allDone() },
+  { id: 'perfect', e: '🌟', name: 'מושלם', desc: '3 כוכבים בתחנה', test: () => Object.values(ST.stars).some(v => v >= 3) },
+  { id: 'allstars', e: '💫', name: 'כוכב על', desc: '3 כוכבים בכל התחנות', test: () => STATIONS.every(s => ST.stars[s.id] === 3) },
+  { id: 'streak5', e: '🔥', name: 'בוער!', desc: '5 תשובות נכונות ברצף', test: () => ST.stats.bestStreak >= 5 },
+  { id: 'streak12', e: '☄️', name: 'כוכב שביט', desc: '12 תשובות נכונות ברצף', test: () => ST.stats.bestStreak >= 12 },
+  { id: 'right50', e: '✅', name: '50 תשובות', desc: 'ענית נכון 50 פעמים', test: () => ST.stats.right >= 50 },
+  { id: 'right200', e: '🧠', name: 'תלמיד חכם', desc: 'ענית נכון 200 פעמים', test: () => ST.stats.right >= 200 },
+  { id: 'rush', e: '⚡', name: 'בלש מהיר', desc: 'סיימת ריצת בלש', test: () => ST.stats.rushes >= 1 },
+  { id: 'gold', e: '🥇', name: 'זהב!', desc: 'מדליית זהב בריצת בלש', test: () => ST.stats.medal >= 3 },
+  { id: 'diamond', e: '💎', name: 'יהלום', desc: 'מדליית יהלום בריצת בלש', test: () => ST.stats.medal >= 4 },
+  { id: 'boss', e: '⚔️', name: 'לא מתעלם!', desc: 'ניצחת את הבוס "המתעלם"', test: () => ST.stats.bosses >= 1 },
+  { id: 'fix10', e: '🔁', name: 'לומד מטעויות', desc: 'תיקנת 10 טעויות', test: () => ST.stats.fixed >= 10 },
+  { id: 'days3', e: '📆', name: '3 ימים ברצף', desc: 'למדת 3 ימים ברצף', test: () => ST.day.n >= 3 },
+  { id: 'days7', e: '📅', name: 'שבוע שלם', desc: 'למדת 7 ימים ברצף', test: () => ST.day.n >= 7 },
+  { id: 'chest5', e: '🎁', name: 'צייד אוצרות', desc: 'פתחת 5 תיבות יומיות', test: () => ST.stats.chests >= 5 },
+  { id: 'shop', e: '🎩', name: 'אופנתי', desc: 'קנית פריט ליוני', test: () => ST.owned.length >= 1 },
+  { id: 'rich', e: '💰', name: 'עשיר', desc: '300 מטבעות בבת אחת', test: () => ST.coins >= 300 },
+];
+const badgeQ = [];
+function checkBadges() {
+  if (!ST.name) return;
+  const fresh = BADGES.filter(b => !ST.badges.includes(b.id) && b.test());
+  if (!fresh.length) return;
+  ST.badges.push(...fresh.map(b => b.id));
+  const idle = !badgeQ.length; badgeQ.push(...fresh);
+  if (idle) setTimeout(showBadge, 900);
+}
+function showBadge() {
+  const b = badgeQ[0]; if (!b) return;
+  const el = document.createElement('div'); el.className = 'badge-pop';
+  el.innerHTML = `<span class="bp-e">${b.e}</span><div class="bp-t"><small>🏅 תג חדש!</small><b>${b.name}</b><span>${b.desc}</span></div>`;
+  el.onclick = () => el.classList.add('out');
+  document.body.appendChild(el); Sound.badge(); FX.confetti(50, innerWidth / 2, 70);
+  setTimeout(() => el.classList.add('out'), 2600);
+  setTimeout(() => { el.remove(); badgeQ.shift(); if (badgeQ.length) setTimeout(showBadge, 250); }, 3000);
+}
+function openBadges() {
+  openModal(`
+    <h3>🏅 התגים שלי</h3>
+    <div class="shop-bal"><b>${ST.badges.length}</b> מתוך ${BADGES.length}</div>
+    <div class="badge-grid">${BADGES.map(b => {
+      const on = ST.badges.includes(b.id);
+      return `<div class="bdg ${on ? 'on' : ''}"><span class="bdg-e">${on ? b.e : '🔒'}</span><b>${b.name}</b><small>${b.desc}</small></div>`;
+    }).join('')}</div>`);
+}
+
+/* ───────── שורת הפעולות במפה ───────── */
+function paintMapActions() {
+  const el = $('#mact'); if (!el) return;
+  const chestReady = ST.chest !== dayKey(), rushOk = rushPool().length >= 6, nm_ = ST.missed.length;
+  el.innerHTML = `
+    <div class="ma ma-streak"><span>🔥</span><small><b>${ST.day.n}</b> ${ST.day.n === 1 ? 'יום' : 'ימים'}</small></div>
+    <button class="ma ${chestReady ? 'ready' : 'used'}" id="ma-chest"><span>${chestReady ? '🎁' : '✅'}</span><small>תיבה יומית</small></button>
+    <button class="ma ${rushOk ? 'ready' : 'off'}" id="ma-rush"><span>⚡</span><small>ריצת בלש</small></button>
+    <button class="ma ${nm_ ? '' : 'off'}" id="ma-rev"><span>🔁</span><small>חזרה</small>${nm_ ? `<i class="ma-n">${nm_}</i>` : ''}</button>
+    <button class="ma" id="ma-bdg"><span>🏅</span><small>${ST.badges.length}/${BADGES.length}</small></button>`;
+  $('#ma-chest').onclick = () => { Sound.click(); openChest(); };
+  $('#ma-rush').onclick = () => { Sound.click(); startRush(false); };
+  $('#ma-rev').onclick = () => { Sound.click(); startReview(); };
+  $('#ma-bdg').onclick = () => { Sound.click(); openBadges(); };
+}
+
 /* ───────── תוצאות תחנה ───────── */
 function renderResults() {
   const st = SESS.st, m = SESS.mistakes;
@@ -528,7 +846,7 @@ function renderResults() {
     <div class="big-stars">${[0, 1, 2].map(k => `<span class="bs" data-on="${k < stars ? 1 : 0}">★</span>`).join('')}</div>
     <div class="res-stats">
       <div><b>${SESS.correct}</b><small>✅ נכונות</small></div>
-      <div><b>${m}</b><small>💡 למדתי מטעויות</small></div>
+      <div><b>${SESS.best || 0}</b><small>🔥 רצף שיא</small></div>
       <div><b id="earn">0</b><small>🪙 מטבעות</small></div>
     </div>
     ${finishedAll ? `<div class="unlock gold">🏆 סיימת את כל התחנות! התעודה מחכה לך!</div>`
@@ -565,48 +883,23 @@ function renderFinal() {
       <div class="cert-perek">אֵלּוּ מְצִיאוֹת</div>
       <div class="cert-p">מסכת בבא מציעא • פרק שני</div>
       <div class="hadran">הַדְרָן עֲלָךְ פֶּרֶק אֵלּוּ מְצִיאוֹת<br>וְהַדְרָךְ עֲלָן!</div>
-      <div class="cert-foot"><span>⭐ ${totalStars()} / ${STATIONS.length * 3}</span><span>${hebDate()}</span><span>🦉 ינשופי הבלש</span></div>
+      <div class="cert-foot"><span>⭐ ${totalStars()} / ${STATIONS.length * 3}</span><span>${hebDate()}</span><span>🕊️ יוני הבלש</span></div>
     </div>
     <div class="final-btns">
-      <button class="btn big gold pulse" id="champ">⚡ חידון האלופים</button>
+      <button class="btn big gold pulse" id="champ">⚔️ קרב הבוס!</button>
       <button class="btn primary" id="toMap">🗺️ למפה</button>
     </div>
   </div>`, 's-final');
   Sound.win(); FX.confetti(200); setTimeout(() => FX.rain(120), 700); setTimeout(() => FX.confetti(120, innerWidth * .2, innerHeight * .3), 1500); setTimeout(() => FX.confetti(120, innerWidth * .8, innerHeight * .3), 2100);
   $('#toMap').onclick = () => { Sound.click(); renderMap(); };
-  $('#champ').onclick = () => { Sound.click(); startChamp(); };
-}
-
-/* ───────── חידון האלופים: שאלות מכל הפרק ───────── */
-function startChamp() {
-  const pool = [];
-  STATIONS.forEach(s => s.games.forEach(g => {
-    if (g.type === 'quiz') pool.push(...g.questions);
-    if (g.type === 'sort') g.items.forEach(it => pool.push({ art: [it.e], q: `${it.t} – מה הדין?`, o: it.a === 'mine' ? ['🎒 שלו!', '📢 חייב להכריז'] : ['📢 חייב להכריז', '🎒 שלו!'], why: it.why }));
-  }));
-  SESS = { i: -1, st: null, mistakes: 0, correct: 0, earned: 0, champ: true };
-  gameQuiz({ title: '⚡ חידון האלופים', questions: shuffle(pool).slice(0, 10), keep: true }, () => {
-    const sc = SESS.correct;
-    setScreen(`
-    <div class="results" style="--c:#eab308">
-      <div class="res-badge">⚡</div>
-      <h2>${sc >= 9 ? 'אלוף הפרק!' : sc >= 7 ? 'מצוין!' : 'יפה מאוד!'}</h2>
-      <div class="res-sub">ענית נכון על <b>${sc}</b> מתוך 10</div>
-      <div class="champ-score">${sc}<small>/10</small></div>
-      ${owl('md happy bob')}
-      <div class="res-btns"><button class="btn big gold pulse" id="again">⚡ עוד סיבוב</button><button class="btn ghost" id="toMap">🗺️ למפה</button></div>
-    </div>`, 's-results');
-    Sound.win(); FX.confetti(sc * 20 + 40);
-    $('#again').onclick = () => { Sound.click(); startChamp(); };
-    $('#toMap').onclick = () => { Sound.click(); renderMap(); };
-  });
+  $('#champ').onclick = () => { Sound.click(); startBoss(); };
 }
 
 /* ───────── חנות ───────── */
 function openShop() {
   const draw = () => {
     openModal(`
-    <h3>🛍️ החנות של ינשופי</h3>
+    <h3>🛍️ החנות של יוני</h3>
     <div class="shop-owl">${owl('md bob')}</div>
     <div class="shop-bal">יש לך <b>${ST.coins}</b> 🪙</div>
     <div class="shop-grid">${SHOP.map(it => {
@@ -648,7 +941,7 @@ function openSettings() {
   let armed = false;
   $('#reset').onclick = e => {
     if (!armed) { armed = true; e.target.textContent = '⚠️ בטוח? לחץ שוב למחיקה'; return; }
-    const sound = ST.sound; ST = Object.assign({}, DEF, { sound }); save(); closeModal(); renderWelcome();
+    const sound = ST.sound; ST = Object.assign(DEF(), { sound, stats: Object.assign({}, DEF_STATS) }); save(); closeModal(); renderWelcome();
   };
 }
 
